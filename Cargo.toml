@@ -1,0 +1,27 @@
+[package]
+name = "matrix-bot-ical"
+version = "0.1.0"
+edition = "2024"
+authors = ["Andrew Newton"]
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "matrix_bot_ical"
+path = "src/lib.rs"
+
+[[bin]]
+name = "matrix-bot-ical"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.100"
+clap = { version = "4.5.53", features = ["derive"] }
+daemonize = "0.5.0"
+ical = "0.11.0"
+matrix-sdk = { version = "0.14.0", features = [ "markdown", "anyhow", "rustls-tls"], default-features = false }
+reqwest = "0.12.24"
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+toml = "0.8"
+
+[dev-dependencies]
+indoc = "1.0"

@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
             .with_context(|| format!("Failed to open log file '{}'", config.log_file))?;
 
         let daemonize = Daemonize::new()
-            .pid_file("/tmp/matrix-bot-help.pid")
+            .pid_file("/tmp/matrix-bot-ical.pid")
             .working_directory(&config.working_dir)
             .stdout(
                 log_file_handle
@@ -92,7 +92,7 @@ async fn run_bot(config: &Config) -> Result<()> {
     let session = MatrixSession {
         meta: SessionMeta {
             user_id,
-            device_id: device_id!("matrix-bot-help").to_owned(),
+            device_id: device_id!("matrix-bot-ical").to_owned(),
         },
         tokens: SessionTokens {
             access_token: config.access_token.clone(),
@@ -158,14 +158,28 @@ async fn on_room_message(
         return;
     }
 
-    // Check if message starts with help command
-    if text_content.body.starts_with("!help") {
-        println!("Received help request in room {}", room.room_id());
+    // Check if message is for meeting/event
+    if text_content.body.starts_with("!meeting") || text_content.body.starts_with("!event") {
+        println!("Received meeting/event request in room {}", room.room_id());
 
         let response = RoomMessageEventContent::text_markdown("ical message");
 
         if let Err(e) = room.send(response).await {
-            eprintln!("Failed to send help message: {}", e);
+            eprintln!("Failed to send meeting/event message: {}", e);
+        }
+    }
+
+    // Check if message is for meetings/events
+    if text_content.body.starts_with("!meetings") || text_content.body.starts_with("!events") {
+        println!(
+            "Received meetings/events request in room {}",
+            room.room_id()
+        );
+
+        let response = RoomMessageEventContent::text_markdown("ical message");
+
+        if let Err(e) = room.send(response).await {
+            eprintln!("Failed to send meetings/events message: {}", e);
         }
     }
 }

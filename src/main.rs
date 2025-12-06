@@ -180,7 +180,8 @@ async fn on_room_message(
             room.room_id()
         );
 
-        let response = RoomMessageEventContent::text_markdown("ical message");
+        let response =
+            RoomMessageEventContent::text_markdown(handle_meetings_events_request(config).await);
 
         if let Err(e) = room.send(response).await {
             eprintln!("Failed to send meetings/events message: {}", e);
@@ -261,6 +262,49 @@ async fn handle_meeting_event_request(config: &Config) -> String {
         }
 
         response.push_str("\n\n");
+    }
+
+    response
+}
+
+async fn handle_meetings_events_request(config: &Config) -> String {
+    if config.webcal.is_empty() {
+        return "No webcal URL configured".to_string();
+    }
+
+    let calendar = match IcalCalendar::from_url(&config.webcal).await {
+        Ok(calendar) => calendar,
+        Err(_) => return "There was a problem fetching the calendar".to_string(),
+    };
+
+    let current_time = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+    let upcoming_events = calendar.get_upcoming_events(&current_time);
+
+    if upcoming_events.is_empty() {
+        return "No upcoming events found.".to_string();
+    }
+
+    let mut response = String::new();
+    response.push_str("# Upcoming Events\n\n");
+
+    for event in upcoming_events {
+        if let Some(summary) = &event.summary {
+            response.push_str(&format!("**{}**", summary));
+
+            if let Some(start_time) = &event.start_time {
+                response.push_str(&format!(" - Starts: {}", start_time));
+            }
+
+            if let Some(location) = &event.location {
+                response.push_str(&format!(" - Location: {}", location));
+            }
+
+            if let Some(description) = &event.description {
+                response.push_str(&format!("\n{}", description));
+            }
+
+            response.push_str("\n\n");
+        }
     }
 
     response

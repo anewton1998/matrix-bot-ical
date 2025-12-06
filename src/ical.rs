@@ -31,6 +31,15 @@ impl IcalCalendar {
         Self::parse_ical_content(&content)
     }
 
+    pub fn from_url_blocking(url: &str) -> Result<Self> {
+        let response = reqwest::blocking::get(url)?;
+        if !response.status().is_success() {
+            return Err(anyhow!("HTTP error: {}", response.status()));
+        }
+        let content = response.text()?;
+        Self::parse_ical_content(&content)
+    }
+
     fn parse_ical_content(content: &str) -> Result<Self> {
         let reader = BufReader::new(content.as_bytes());
         let parser = IcalParser::new(reader);

@@ -20,7 +20,7 @@ clap = { version = "4.5.53", features = ["derive"] }
 daemonize = "0.5.0"
 ical = "0.11.0"
 matrix-sdk = { version = "0.14.0", features = [ "markdown", "anyhow", "rustls-tls"], default-features = false }
-reqwest = "0.12.24"
+reqwest = { version = "0.12.24", features = ["blocking"] }
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 tokio-cron-scheduler = { version = "0.15.1", features = ["english"] }
 toml = "0.8"

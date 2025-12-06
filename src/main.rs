@@ -29,8 +29,7 @@ struct Cli {
     daemonize: bool,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let cli = Cli::parse();
     println!("Using config file: {}", cli.config);
     println!("Daemonize: {}", cli.daemonize);
@@ -45,7 +44,10 @@ async fn main() -> Result<()> {
     println!("Config loaded:");
     config.print();
 
-    if (IcalCalendar::from_url(&config.webcal).await).is_ok() {
+    // Validate reminder configurations before starting bot
+    validate_reminders(&config)?;
+
+    if (IcalCalendar::from_url_blocking(&config.webcal)).is_ok() {
         println!("Calendar fetched and parsed: {}", &config.webcal);
     }
 
@@ -71,18 +73,14 @@ async fn main() -> Result<()> {
 
         println!("Successfully daemonized, PID: {}", std::process::id());
         config.print();
-
-        // Bot logic runs here after daemonizing
-        run_bot(&config).await?;
-    } else {
-        // Non-daemon bot logic
-        run_bot(&config).await?;
     }
 
+    run_bot(&config)?;
     println!("Bye.");
     Ok(())
 }
 
+#[tokio::main]
 async fn run_bot(config: &Config) -> Result<()> {
     println!("Starting Matrix bot with homeserver: {}", config.homeserver);
 
@@ -349,9 +347,7 @@ async fn handle_meetings_events_request(config: &Config) -> String {
     response
 }
 
-async fn setup_reminder_scheduler(client: &Client, config: &Config) -> Result<()> {
-    let scheduler = JobScheduler::new().await?;
-
+fn validate_reminders(config: &Config) -> Result<()> {
     for (i, reminder) in config.reminders.iter().enumerate() {
         // Validate cron expression
         if let Err(e) = Job::new_async(&reminder.cron, move |_uuid, _l| Box::pin(async {})) {
@@ -372,7 +368,21 @@ async fn setup_reminder_scheduler(client: &Client, config: &Config) -> Result<()
                 e
             ));
         }
+    }
 
+    if config.reminders.is_empty() {
+        println!("No reminders configured");
+    } else {
+        println!("Validated {} reminder(s)", config.reminders.len());
+    }
+
+    Ok(())
+}
+
+async fn setup_reminder_scheduler(client: &Client, config: &Config) -> Result<()> {
+    let scheduler = JobScheduler::new().await?;
+
+    for (i, reminder) in config.reminders.iter().enumerate() {
         let client_clone = client.clone();
         let config_clone = config.clone();
         let reminder_type = reminder.reminder_type.clone();
@@ -400,9 +410,7 @@ async fn setup_reminder_scheduler(client: &Client, config: &Config) -> Result<()
         );
     }
 
-    if config.reminders.is_empty() {
-        println!("No reminders configured");
-    } else {
+    if !config.reminders.is_empty() {
         scheduler.start().await?;
         println!(
             "Reminder scheduler started with {} jobs",

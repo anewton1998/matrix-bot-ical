@@ -44,6 +44,10 @@ async fn main() -> Result<()> {
     println!("Config loaded:");
     config.print();
 
+    if (IcalCalendar::from_url(&config.webcal).await).is_ok() {
+        println!("Calendar fetched and parsed: {}", &config.webcal);
+    }
+
     // Daemonize if requested
     if cli.daemonize {
         let log_file_handle = OpenOptions::new()
@@ -161,18 +165,6 @@ async fn on_room_message(
         return;
     }
 
-    // Check if message is for meeting/event
-    if text_content.body.starts_with("!meeting") || text_content.body.starts_with("!event") {
-        println!("Received meeting/event request in room {}", room.room_id());
-
-        let response =
-            RoomMessageEventContent::text_markdown(handle_meeting_event_request(config).await);
-
-        if let Err(e) = room.send(response).await {
-            eprintln!("Failed to send meeting/event message: {}", e);
-        }
-    }
-
     // Check if message is for meetings/events
     if text_content.body.starts_with("!meetings") || text_content.body.starts_with("!events") {
         println!(
@@ -185,6 +177,17 @@ async fn on_room_message(
 
         if let Err(e) = room.send(response).await {
             eprintln!("Failed to send meetings/events message: {}", e);
+        }
+    }
+    // Check if message is for meeting/event
+    else if text_content.body.starts_with("!meeting") || text_content.body.starts_with("!event") {
+        println!("Received meeting/event request in room {}", room.room_id());
+
+        let response =
+            RoomMessageEventContent::text_markdown(handle_meeting_event_request(config).await);
+
+        if let Err(e) = room.send(response).await {
+            eprintln!("Failed to send meeting/event message: {}", e);
         }
     }
 }
@@ -225,6 +228,19 @@ async fn on_stripped_state_member(event: StrippedRoomMemberEvent, client: Client
     }
 }
 
+fn format_ical_date(ical_date: &str) -> String {
+    match chrono::DateTime::parse_from_str(ical_date, "%Y%m%dT%H%M%SZ") {
+        Ok(dt) => dt.format("%a, %b %d, %Y at %I:%M %p").to_string(),
+        Err(_) => {
+            // Try parsing without timezone
+            match chrono::NaiveDateTime::parse_from_str(ical_date, "%Y%m%dT%H%M%S") {
+                Ok(dt) => dt.format("%a, %b %d, %Y at %I:%M %p").to_string(),
+                Err(_) => ical_date.to_string(), // Return original if parsing fails
+            }
+        }
+    }
+}
+
 async fn handle_meeting_event_request(config: &Config) -> String {
     if config.webcal.is_empty() {
         return "No webcal URL configured".to_string();
@@ -244,21 +260,25 @@ async fn handle_meeting_event_request(config: &Config) -> String {
 
     let event = upcoming_events[0];
     let mut response = String::new();
-    response.push_str("# Next Meeting\n\n");
+    response.push_str("# Next Meeting/Event\n\n");
 
     if let Some(summary) = &event.summary {
-        response.push_str(&format!("**{}**", summary));
+        if let Some(url) = &event.url {
+            response.push_str(&format!("**[{}]({})**\n", summary, url));
+        } else {
+            response.push_str(&format!("**{}**\n", summary));
+        }
 
         if let Some(start_time) = &event.start_time {
-            response.push_str(&format!(" - Starts: {}", start_time));
+            response.push_str(&format!("* Starts: {}\n", format_ical_date(start_time)));
+        }
+
+        if let Some(end_time) = &event.end_time {
+            response.push_str(&format!("* Ends: {}\n", format_ical_date(end_time)));
         }
 
         if let Some(location) = &event.location {
-            response.push_str(&format!(" - Location: {}", location));
-        }
-
-        if let Some(description) = &event.description {
-            response.push_str(&format!("\n{}", description));
+            response.push_str(&format!("* Location: {}\n", location));
         }
 
         response.push_str("\n\n");
@@ -290,22 +310,26 @@ async fn handle_meetings_events_request(config: &Config) -> String {
     }
 
     let mut response = String::new();
-    response.push_str("# Upcoming Events\n\n");
+    response.push_str("# Upcoming Meetings/Events\n\n");
 
     for event in upcoming_events {
         if let Some(summary) = &event.summary {
-            response.push_str(&format!("**{}**", summary));
+            if let Some(url) = &event.url {
+                response.push_str(&format!("**[{}]({})**\n", summary, url));
+            } else {
+                response.push_str(&format!("**{}**\n", summary));
+            }
 
             if let Some(start_time) = &event.start_time {
-                response.push_str(&format!(" - Starts: {}", start_time));
+                response.push_str(&format!("* Starts: {}\n", format_ical_date(start_time)));
+            }
+
+            if let Some(end_time) = &event.end_time {
+                response.push_str(&format!("* Ends: {}\n", format_ical_date(end_time)));
             }
 
             if let Some(location) = &event.location {
-                response.push_str(&format!(" - Location: {}", location));
-            }
-
-            if let Some(description) = &event.description {
-                response.push_str(&format!("\n{}", description));
+                response.push_str(&format!("* Location: {}\n", location));
             }
 
             response.push_str("\n\n");

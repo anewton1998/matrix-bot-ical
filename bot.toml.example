@@ -1,0 +1,12 @@
+homeserver = "https://matrix.example.com"
+username = "@bot:example.com"
+access_token = "secret_token"
+log_file = "/var/log/bot.log"
+working_directory = "/app"
+webcal = "https://example.com/calendar.ics"
+info_url = "https://example.com/info"
+
+[bot_filtering]
+ignore_self = false
+ignore_bots = true
+ignored_users = ["@spam-bot:example.com", "@announcement-bot:example.com"]

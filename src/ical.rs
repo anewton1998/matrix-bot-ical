@@ -9,6 +9,7 @@ pub struct CalendarEvent {
     pub start_time: Option<String>,
     pub end_time: Option<String>,
     pub location: Option<String>,
+    pub url: Option<String>,
 }
 
 pub struct IcalCalendar {
@@ -46,6 +47,7 @@ impl IcalCalendar {
                             start_time: None,
                             end_time: None,
                             location: None,
+                            url: None,
                         };
 
                         for property in event.properties {
@@ -64,6 +66,9 @@ impl IcalCalendar {
                                 }
                                 "LOCATION" => {
                                     calendar_event.location = property.value.clone();
+                                }
+                                "URL" => {
+                                    calendar_event.url = property.value.clone();
                                 }
                                 _ => {}
                             }

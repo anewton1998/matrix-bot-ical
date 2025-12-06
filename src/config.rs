@@ -30,6 +30,7 @@ pub struct Config {
     pub log_file: String,
     pub working_dir: String,
     pub webcal: String,
+    pub info_url: Option<String>,
     pub bot_filtering: BotFilteringConfig,
 }
 
@@ -69,6 +70,10 @@ impl Config {
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string(),
+            info_url: config
+                .get("info_url")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
             bot_filtering: parse_bot_filtering_config(&config)?,
         })
     }
@@ -88,6 +93,10 @@ impl Config {
         println!("  Log File: {}", self.log_file);
         println!("  Working Directory: {}", self.working_dir);
         println!("  Webcal: {}", self.webcal);
+        match &self.info_url {
+            Some(url) => println!("  Info URL: {}", url),
+            None => println!("  Info URL: [not set]"),
+        }
         println!("  Bot Filtering:");
         println!("    Ignore Self: {}", self.bot_filtering.ignore_self);
         println!("    Ignore Bots: {}", self.bot_filtering.ignore_bots);
@@ -186,6 +195,7 @@ mod tests {
         assert_eq!(config.log_file, "bot.log");
         assert_eq!(config.working_dir, ".");
         assert_eq!(config.webcal, "");
+        assert_eq!(config.info_url, None);
         // Bot filtering should use defaults when not specified
         assert!(config.bot_filtering.ignore_self);
         assert!(!config.bot_filtering.ignore_bots);
@@ -202,6 +212,7 @@ mod tests {
             log_file = \"/var/log/bot.log\"
             working_directory = \"/app\"
             webcal = \"https://example.com/calendar.ics\"
+            info_url = \"https://example.com/info\"
 
             [bot_filtering]
             ignore_self = false
@@ -219,6 +230,10 @@ mod tests {
         assert_eq!(config.log_file, "/var/log/bot.log");
         assert_eq!(config.working_dir, "/app");
         assert_eq!(config.webcal, "https://example.com/calendar.ics");
+        assert_eq!(
+            config.info_url,
+            Some("https://example.com/info".to_string())
+        );
         assert!(!config.bot_filtering.ignore_self);
         assert!(config.bot_filtering.ignore_bots);
         assert_eq!(config.bot_filtering.ignored_users.len(), 2);

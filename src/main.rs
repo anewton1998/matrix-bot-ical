@@ -264,6 +264,11 @@ async fn handle_meeting_event_request(config: &Config) -> String {
         response.push_str("\n\n");
     }
 
+    // Add info URL if configured
+    if let Some(info_url) = &config.info_url {
+        response.push_str(&format!("\nFor more information: {}\n", info_url));
+    }
+
     response
 }
 
@@ -305,6 +310,11 @@ async fn handle_meetings_events_request(config: &Config) -> String {
 
             response.push_str("\n\n");
         }
+    }
+
+    // Add info URL if configured
+    if let Some(info_url) = &config.info_url {
+        response.push_str(&format!("\nFor more information: {}\n", info_url));
     }
 
     response

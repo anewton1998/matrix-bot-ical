@@ -22,13 +22,14 @@ impl Default for BotFilteringConfig {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
     pub homeserver: String,
     pub username: String,
     pub access_token: String,
     pub log_file: String,
     pub working_dir: String,
+    pub webcal: String,
     pub bot_filtering: BotFilteringConfig,
 }
 
@@ -63,6 +64,11 @@ impl Config {
                 .and_then(|v| v.as_str())
                 .unwrap_or(".")
                 .to_string(),
+            webcal: config
+                .get("webcal")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             bot_filtering: parse_bot_filtering_config(&config)?,
         })
     }
@@ -81,6 +87,7 @@ impl Config {
         );
         println!("  Log File: {}", self.log_file);
         println!("  Working Directory: {}", self.working_dir);
+        println!("  Webcal: {}", self.webcal);
         println!("  Bot Filtering:");
         println!("    Ignore Self: {}", self.bot_filtering.ignore_self);
         println!("    Ignore Bots: {}", self.bot_filtering.ignore_bots);
@@ -178,6 +185,7 @@ mod tests {
         assert_eq!(config.access_token, "secret_token");
         assert_eq!(config.log_file, "bot.log");
         assert_eq!(config.working_dir, ".");
+        assert_eq!(config.webcal, "");
         // Bot filtering should use defaults when not specified
         assert!(config.bot_filtering.ignore_self);
         assert!(!config.bot_filtering.ignore_bots);
@@ -193,6 +201,7 @@ mod tests {
             access_token = \"secret_token\"
             log_file = \"/var/log/bot.log\"
             working_directory = \"/app\"
+            webcal = \"https://example.com/calendar.ics\"
 
             [bot_filtering]
             ignore_self = false
@@ -209,6 +218,7 @@ mod tests {
         assert_eq!(config.access_token, "secret_token");
         assert_eq!(config.log_file, "/var/log/bot.log");
         assert_eq!(config.working_dir, "/app");
+        assert_eq!(config.webcal, "https://example.com/calendar.ics");
         assert!(!config.bot_filtering.ignore_self);
         assert!(config.bot_filtering.ignore_bots);
         assert_eq!(config.bot_filtering.ignored_users.len(), 2);

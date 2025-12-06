@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use daemonize::Daemonize;
 use matrix_bot_ical::config::{self, Config, should_ignore_user};
+use matrix_bot_ical::ical::IcalCalendar;
 use matrix_sdk::{
     Client, Room, RoomState, SessionMeta, SessionTokens,
     authentication::matrix::MatrixSession,
@@ -120,9 +121,10 @@ async fn run_bot(config: &Config) -> Result<()> {
 
     // Add event handler for room messages
     let bot_filtering = config.bot_filtering.clone();
+    let config_clone = config.clone();
     client.add_event_handler(
         move |event: OriginalSyncRoomMessageEvent, room: Room| async move {
-            on_room_message(event, room, &bot_user_id, &bot_filtering).await
+            on_room_message(event, room, &bot_user_id, &bot_filtering, &config_clone).await
         },
     );
 
@@ -142,6 +144,7 @@ async fn on_room_message(
     room: Room,
     bot_user_id: &UserId,
     bot_filtering: &config::BotFilteringConfig,
+    config: &Config,
 ) {
     // Only respond to messages in joined rooms
     if room.state() != RoomState::Joined {
@@ -162,7 +165,8 @@ async fn on_room_message(
     if text_content.body.starts_with("!meeting") || text_content.body.starts_with("!event") {
         println!("Received meeting/event request in room {}", room.room_id());
 
-        let response = RoomMessageEventContent::text_markdown("ical message");
+        let response =
+            RoomMessageEventContent::text_markdown(handle_meeting_event_request(config).await);
 
         if let Err(e) = room.send(response).await {
             eprintln!("Failed to send meeting/event message: {}", e);
@@ -218,4 +222,46 @@ async fn on_stripped_state_member(event: StrippedRoomMemberEvent, client: Client
             }
         });
     }
+}
+
+async fn handle_meeting_event_request(config: &Config) -> String {
+    if config.webcal.is_empty() {
+        return "No webcal URL configured".to_string();
+    }
+
+    let calendar = match IcalCalendar::from_url(&config.webcal).await {
+        Ok(calendar) => calendar,
+        Err(_) => return "There was a problem fetching the calendar".to_string(),
+    };
+
+    let current_time = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+    let upcoming_events = calendar.get_upcoming_events_limited(&current_time, Some(1));
+
+    if upcoming_events.is_empty() {
+        return "No upcoming events found.".to_string();
+    }
+
+    let event = upcoming_events[0];
+    let mut response = String::new();
+    response.push_str("# Next Meeting\n\n");
+
+    if let Some(summary) = &event.summary {
+        response.push_str(&format!("**{}**", summary));
+
+        if let Some(start_time) = &event.start_time {
+            response.push_str(&format!(" - Starts: {}", start_time));
+        }
+
+        if let Some(location) = &event.location {
+            response.push_str(&format!(" - Location: {}", location));
+        }
+
+        if let Some(description) = &event.description {
+            response.push_str(&format!("\n{}", description));
+        }
+
+        response.push_str("\n\n");
+    }
+
+    response
 }

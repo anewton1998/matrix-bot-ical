@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use daemonize::Daemonize;
-use matrix_bot_ical::config::{self, Config, should_ignore_user, ReminderType};
+use matrix_bot_ical::config::{self, Config, ReminderType, should_ignore_user};
 use matrix_bot_ical::ical::IcalCalendar;
 use matrix_sdk::{
     Client, Room, RoomState, SessionMeta, SessionTokens,
@@ -11,7 +11,7 @@ use matrix_sdk::{
     ruma::events::room::message::{
         MessageType, OriginalSyncRoomMessageEvent, RoomMessageEventContent,
     },
-    ruma::{UserId, device_id, RoomId},
+    ruma::{RoomId, UserId, device_id},
 };
 use std::fs::{self, OpenOptions};
 use tokio_cron_scheduler::{Job, JobScheduler};
@@ -79,6 +79,7 @@ async fn main() -> Result<()> {
         run_bot(&config).await?;
     }
 
+    println!("Bye.");
     Ok(())
 }
 
@@ -350,12 +351,10 @@ async fn handle_meetings_events_request(config: &Config) -> String {
 
 async fn setup_reminder_scheduler(client: &Client, config: &Config) -> Result<()> {
     let scheduler = JobScheduler::new().await?;
-    
+
     for (i, reminder) in config.reminders.iter().enumerate() {
         // Validate cron expression
-        if let Err(e) = Job::new_async(&reminder.cron, move |_uuid, _l| {
-            Box::pin(async {})
-        }) {
+        if let Err(e) = Job::new_async(&reminder.cron, move |_uuid, _l| Box::pin(async {})) {
             return Err(anyhow::anyhow!(
                 "Invalid cron expression in reminder #{}: '{}'. Error: {}",
                 i + 1,
@@ -363,7 +362,7 @@ async fn setup_reminder_scheduler(client: &Client, config: &Config) -> Result<()
                 e
             ));
         }
-        
+
         // Validate room ID
         if let Err(e) = RoomId::parse(&reminder.matrix_room) {
             return Err(anyhow::anyhow!(
@@ -373,34 +372,44 @@ async fn setup_reminder_scheduler(client: &Client, config: &Config) -> Result<()
                 e
             ));
         }
-        
+
         let client_clone = client.clone();
         let config_clone = config.clone();
         let reminder_type = reminder.reminder_type.clone();
         let room_id = reminder.matrix_room.clone();
-        
+
         let job = Job::new_async(&reminder.cron, move |_uuid, _l| {
             let client_clone = client_clone.clone();
             let config_clone = config_clone.clone();
             let room_id = room_id.clone();
             let reminder_type = reminder_type.clone();
-            
+
             Box::pin(async move {
-                send_scheduled_reminder(&client_clone, &config_clone, &room_id, &reminder_type).await;
+                send_scheduled_reminder(&client_clone, &config_clone, &room_id, &reminder_type)
+                    .await;
             })
         })?;
-        
+
         scheduler.add(job).await?;
-        println!("Scheduled reminder #{}: {} -> {:?} in room {}", i + 1, reminder.cron, reminder.reminder_type, reminder.matrix_room);
+        println!(
+            "Scheduled reminder #{}: {} -> {:?} in room {}",
+            i + 1,
+            reminder.cron,
+            reminder.reminder_type,
+            reminder.matrix_room
+        );
     }
-    
+
     if config.reminders.is_empty() {
         println!("No reminders configured");
     } else {
         scheduler.start().await?;
-        println!("Reminder scheduler started with {} jobs", config.reminders.len());
+        println!(
+            "Reminder scheduler started with {} jobs",
+            config.reminders.len()
+        );
     }
-    
+
     Ok(())
 }
 
@@ -417,7 +426,7 @@ async fn send_scheduled_reminder(
             return;
         }
     };
-    
+
     let room = match client.get_room(&room_id) {
         Some(room) => room,
         None => {
@@ -425,16 +434,19 @@ async fn send_scheduled_reminder(
             return;
         }
     };
-    
+
     let message = match reminder_type {
         ReminderType::NextMeeting => handle_meeting_event_request(config).await,
         ReminderType::AllUpcomingMeetings => handle_meetings_events_request(config).await,
     };
-    
+
     let response = RoomMessageEventContent::text_markdown(message);
-    
+
     if let Err(e) = room.send(response).await {
-        eprintln!("Failed to send scheduled reminder to room '{}': {}", room_id, e);
+        eprintln!(
+            "Failed to send scheduled reminder to room '{}': {}",
+            room_id, e
+        );
     } else {
         println!("Sent scheduled reminder to room '{}'", room_id);
     }

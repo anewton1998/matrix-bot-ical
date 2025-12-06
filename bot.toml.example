@@ -6,6 +6,21 @@ working_directory = "/app"
 webcal = "https://example.com/calendar.ics"
 info_url = "https://example.com/info"
 
+# Reminders configuration
+# Each reminder has a cron expression, reminder type, and target Matrix room
+# Cron format: minute hour day-of-month month day-of-week
+# Example: "0 9 * * 1-5" = 9:00 AM, Monday to Friday
+
+[[reminders]]
+cron = "0 9 * * 1-5"  # 9:00 AM, Monday to Friday
+reminder_type = "NextMeeting"
+matrix_room = "!roomid:example.com"
+
+[[reminders]]
+cron = "0 8 * * 1"     # 8:00 AM, every Monday
+reminder_type = "AllUpcomingMeetings"
+matrix_room = "!roomid:example.com"
+
 [bot_filtering]
 ignore_self = false
 ignore_bots = true

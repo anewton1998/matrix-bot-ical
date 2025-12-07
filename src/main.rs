@@ -347,7 +347,7 @@ async fn handle_meetings_events_request(config: &Config) -> String {
     response
 }
 
-fn validate_reminders(config: &Config) -> Result<()> {
+pub fn validate_reminders(config: &Config) -> Result<()> {
     for (i, reminder) in config.reminders.iter().enumerate() {
         // Validate cron expression
         if let Err(e) = Job::new_async(&reminder.cron, move |_uuid, _l| Box::pin(async {})) {
@@ -456,6 +456,189 @@ async fn send_scheduled_reminder(
             room_id, e
         );
     } else {
-        println!("Sent scheduled reminder to room '{}'", room_id);
+        let current_time = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
+        println!(
+            "{} - Sent scheduled reminder to room '{}'",
+            current_time, room_id
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{Config, ReminderConfig, ReminderType};
+
+    #[test]
+    fn test_validate_reminders_valid_config() {
+        let config = Config {
+            homeserver: "https://matrix.example.com".to_string(),
+            username: "@bot:example.com".to_string(),
+            access_token: "test_token".to_string(),
+            webcal: "https://example.com/calendar.ics".to_string(),
+            info_url: None,
+            log_file: "/tmp/bot.log".to_string(),
+            working_dir: "/tmp".to_string(),
+            bot_filtering: Default::default(),
+            reminders: vec![ReminderConfig {
+                cron: "0 9 * * MON-FRI".to_string(), // Valid cron: weekdays at 9 AM
+                matrix_room: "!roomid:example.com".to_string(),
+                reminder_type: ReminderType::NextMeeting,
+            }],
+        };
+
+        match validate_reminders(&config) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Validation error: {}", e);
+                panic!("Validation should have succeeded");
+            }
+        }
+    }
+
+    #[test]
+    fn test_validate_reminders_day() {
+        let config = Config {
+            homeserver: "https://matrix.example.com".to_string(),
+            username: "@bot:example.com".to_string(),
+            access_token: "test_token".to_string(),
+            webcal: "https://example.com/calendar.ics".to_string(),
+            info_url: None,
+            log_file: "/tmp/bot.log".to_string(),
+            working_dir: "/tmp".to_string(),
+            bot_filtering: Default::default(),
+            reminders: vec![ReminderConfig {
+                cron: "0 9 * * MON".to_string(), // Valid cron: monday at 9 AM
+                matrix_room: "!roomid:example.com".to_string(),
+                reminder_type: ReminderType::NextMeeting,
+            }],
+        };
+
+        match validate_reminders(&config) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Validation error: {}", e);
+                panic!("Validation should have succeeded");
+            }
+        }
+    }
+
+    #[test]
+    fn test_validate_reminders_nth_day() {
+        let config = Config {
+            homeserver: "https://matrix.example.com".to_string(),
+            username: "@bot:example.com".to_string(),
+            access_token: "test_token".to_string(),
+            webcal: "https://example.com/calendar.ics".to_string(),
+            info_url: None,
+            log_file: "/tmp/bot.log".to_string(),
+            working_dir: "/tmp".to_string(),
+            bot_filtering: Default::default(),
+            reminders: vec![ReminderConfig {
+                cron: "0 9 * * MON#2".to_string(), // Valid cron: second monday at 9 AM
+                matrix_room: "!roomid:example.com".to_string(),
+                reminder_type: ReminderType::NextMeeting,
+            }],
+        };
+
+        match validate_reminders(&config) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Validation error: {}", e);
+                panic!("Validation should have succeeded");
+            }
+        }
+    }
+
+    #[test]
+    fn test_validate_reminders_invalid_cron() {
+        let config = Config {
+            homeserver: "https://matrix.example.com".to_string(),
+            username: "@bot:example.com".to_string(),
+            access_token: "test_token".to_string(),
+            webcal: "https://example.com/calendar.ics".to_string(),
+            info_url: None,
+            log_file: "/tmp/bot.log".to_string(),
+            working_dir: "/tmp".to_string(),
+            bot_filtering: Default::default(),
+            reminders: vec![ReminderConfig {
+                cron: "invalid cron expression".to_string(),
+                matrix_room: "!roomid:example.com".to_string(),
+                reminder_type: ReminderType::NextMeeting,
+            }],
+        };
+
+        assert!(validate_reminders(&config).is_err());
+    }
+
+    #[test]
+    fn test_validate_reminders_invalid_room_id() {
+        let config = Config {
+            homeserver: "https://matrix.example.com".to_string(),
+            username: "@bot:example.com".to_string(),
+            access_token: "test_token".to_string(),
+            webcal: "https://example.com/calendar.ics".to_string(),
+            info_url: None,
+            log_file: "/tmp/bot.log".to_string(),
+            working_dir: "/tmp".to_string(),
+            bot_filtering: Default::default(),
+            reminders: vec![ReminderConfig {
+                cron: "0 9 * * 1-5".to_string(),
+                matrix_room: "invalid-room-id".to_string(),
+                reminder_type: ReminderType::NextMeeting,
+            }],
+        };
+
+        assert!(validate_reminders(&config).is_err());
+    }
+
+    #[test]
+    fn test_validate_reminders_empty_reminders() {
+        let config = Config {
+            homeserver: "https://matrix.example.com".to_string(),
+            username: "@bot:example.com".to_string(),
+            access_token: "test_token".to_string(),
+            webcal: "https://example.com/calendar.ics".to_string(),
+            info_url: None,
+            log_file: "/tmp/bot.log".to_string(),
+            working_dir: "/tmp".to_string(),
+            bot_filtering: Default::default(),
+            reminders: vec![],
+        };
+
+        assert!(validate_reminders(&config).is_ok());
+    }
+
+    #[test]
+    fn test_validate_reminders_multiple_valid() {
+        let config = Config {
+            homeserver: "https://matrix.example.com".to_string(),
+            username: "@bot:example.com".to_string(),
+            access_token: "test_token".to_string(),
+            webcal: "https://example.com/calendar.ics".to_string(),
+            info_url: None,
+            log_file: "/tmp/bot.log".to_string(),
+            working_dir: "/tmp".to_string(),
+            bot_filtering: Default::default(),
+            reminders: vec![
+                ReminderConfig {
+                    cron: "0 9 * * MON-FRI".to_string(), // Weekdays at 9 AM
+                    matrix_room: "!room1:example.com".to_string(),
+                    reminder_type: ReminderType::NextMeeting,
+                },
+                ReminderConfig {
+                    cron: "0 17 * * MON-FRI".to_string(), // Weekdays at 5 PM
+                    matrix_room: "!room2:example.com".to_string(),
+                    reminder_type: ReminderType::AllUpcomingMeetings,
+                },
+                ReminderConfig {
+                    cron: "@daily".to_string(), // Daily at midnight
+                    matrix_room: "!room3:example.com".to_string(),
+                    reminder_type: ReminderType::NextMeeting,
+                },
+            ],
+        };
+
+        assert!(validate_reminders(&config).is_ok());
     }
 }

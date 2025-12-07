@@ -122,7 +122,13 @@ impl Config {
             println!("    [none]");
         } else {
             for (i, reminder) in self.reminders.iter().enumerate() {
-                println!("    {}: {} -> {:?} in room {}", i + 1, reminder.cron, reminder.reminder_type, reminder.matrix_room);
+                println!(
+                    "    {}: {} -> {:?} in room {}",
+                    i + 1,
+                    reminder.cron,
+                    reminder.reminder_type,
+                    reminder.matrix_room
+                );
             }
         }
         println!("  Bot Filtering:");
@@ -142,10 +148,10 @@ impl Config {
 /// Parse reminders configuration from TOML value.
 fn parse_reminders_config(config: &Value) -> Result<Vec<ReminderConfig>> {
     let reminders_config = config.get("reminders");
-    
+
     if let Some(reminders_array) = reminders_config.and_then(|v| v.as_array()) {
         let mut reminders = Vec::new();
-        
+
         for reminder_value in reminders_array {
             if let Some(reminder_table) = reminder_value.as_table() {
                 let cron = reminder_table
@@ -153,24 +159,24 @@ fn parse_reminders_config(config: &Value) -> Result<Vec<ReminderConfig>> {
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| anyhow!("Missing 'cron' in reminder configuration"))?
                     .to_string();
-                
+
                 let reminder_type_str = reminder_table
                     .get("reminder_type")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| anyhow!("Missing 'reminder_type' in reminder configuration"))?;
-                
+
                 let reminder_type = match reminder_type_str {
                     "NextMeeting" => ReminderType::NextMeeting,
                     "AllUpcomingMeetings" => ReminderType::AllUpcomingMeetings,
                     _ => return Err(anyhow!("Invalid reminder_type: {}", reminder_type_str)),
                 };
-                
+
                 let matrix_room = reminder_table
                     .get("matrix_room")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| anyhow!("Missing 'matrix_room' in reminder configuration"))?
                     .to_string();
-                
+
                 reminders.push(ReminderConfig {
                     cron,
                     reminder_type,
@@ -178,7 +184,7 @@ fn parse_reminders_config(config: &Value) -> Result<Vec<ReminderConfig>> {
                 });
             }
         }
-        
+
         Ok(reminders)
     } else {
         // No reminders section, return empty vector
@@ -314,15 +320,21 @@ mod tests {
         assert_eq!(config.username, "@bot:example.com");
         assert_eq!(config.access_token, "secret_token");
         assert_eq!(config.log_file, "/var/log/bot.log");
-assert_eq!(config.working_dir, "/app");
+        assert_eq!(config.working_dir, "/app");
         assert_eq!(config.webcal, "https://example.com/calendar.ics");
-        assert_eq!(config.info_url, Some("https://example.com/info".to_string()));
+        assert_eq!(
+            config.info_url,
+            Some("https://example.com/info".to_string())
+        );
         assert_eq!(config.reminders.len(), 2);
         assert_eq!(config.reminders[0].cron, "0 9 * * 1-5");
         assert_eq!(config.reminders[0].reminder_type, ReminderType::NextMeeting);
         assert_eq!(config.reminders[0].matrix_room, "!roomid:example.com");
         assert_eq!(config.reminders[1].cron, "0 8 * * 1");
-        assert_eq!(config.reminders[1].reminder_type, ReminderType::AllUpcomingMeetings);
+        assert_eq!(
+            config.reminders[1].reminder_type,
+            ReminderType::AllUpcomingMeetings
+        );
         assert_eq!(config.reminders[1].matrix_room, "!roomid:example.com");
         assert!(!config.bot_filtering.ignore_self);
         assert!(config.bot_filtering.ignore_bots);

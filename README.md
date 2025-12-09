@@ -43,12 +43,12 @@ ignored_users = ["@spam-bot:example.com"]
 
 # Scheduled reminders
 [[reminders]]
-cron = "0 9 * * 1-5"  # 9:00 AM, Monday to Friday
+cron = "0 0 9 * * 1-5"  # 9:00 AM, Monday to Friday
 reminder_type = "NextMeeting"
 matrix_room = "!roomid:example.com"
 
 [[reminders]]
-cron = "0 8 * * 1"     # 8:00 AM, every Monday
+cron = "0 0 8 * * 1"     # 8:00 AM, every Monday
 reminder_type = "AllUpcomingMeetings"
 matrix_room = "!roomid:example.com"
 ```
@@ -57,15 +57,36 @@ matrix_room = "!roomid:example.com"
 
 ### Cron Format
 
-Cron expressions use the format: `minute hour day-of-month month day-of-week`
+Cron expressions use the format: `second minute hour day-of-month month day-of-week`
 
 Examples:
-- `"0 9 * * 1-5"` - 9:00 AM, Monday to Friday
-- `"0 8 * * 1"` - 8:00 AM, every Monday
-- `"*/30 * * * *"` - Every 30 minutes
-- `"0 0 1 * *"` - At midnight on the 1st of every month
+- `"0 0 9 * * 1-5"` - 9:00 AM, Monday to Friday
+- `"0 0 8 * * 1"` - 8:00 AM, every Monday
+- `"0 */30 * * * *"` - Every 30 minutes
+- `"0 0 0 1 * *"` - At midnight on the 1st of every month
 
-It will also take English expressions using [english-to-cron](https://docs.rs/english-to-cron/latest/english_to_cron/fn.str_cron_syntax.html).
+It will also take English expressions using [english-to-cron](https://docs.rs/english-to-cron/latest/english_to_cron/fn.str_cron_syntax.html),
+though these can be imprecise.
+
+Note that the cron format takes seconds, which is required. If you have weird problems, check to make sure you specified seconds correctly.
+
+The scheduling is provided by [tokio-cron-scheduler](https://crates.io/crates/tokio-cron-scheduler/0.15.1), which has this
+advice on the cron expressions:
+
+> Time is specified for `UTC` and not your local timezone. Note that the year may
+> be omitted. If you want for your timezone, append `_tz` to the job creation calls (for instance
+> Job::new_async vs Job::new_async_tz).
+> 
+> Comma-separated values such as `5,8,10` represent more than one time value. So
+> for example, a schedule of `0 2,14,26 * * * *` would execute on the 2nd, 14th,
+> and 26th minute of every hour.
+> 
+> Ranges can be specified with a dash. A schedule of `0 0 * 5-10 * *` would
+> execute once per hour but only on days 5 through 10 of the month.
+> 
+> The day of the week can be specified as an abbreviation or the full name. A
+> schedule of `0 0 6 * * Sun,Sat` would execute at 6 am on Sunday and Saturday.
+
 
 ### Reminder Types
 
